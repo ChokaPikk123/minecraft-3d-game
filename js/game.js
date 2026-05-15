@@ -1,8 +1,8 @@
-// Configuration de base
+// Configuration de base - OPTIMISÉE
 const CONFIG = {
     CHUNK_SIZE: 16,
-    WORLD_HEIGHT: 256,
-    RENDER_DISTANCE: 8,
+    WORLD_HEIGHT: 128,
+    RENDER_DISTANCE: 4,  // Réduit de 8 à 4
     BLOCK_SIZE: 1,
     PLAYER_HEIGHT: 1.62,
     MOVEMENT_SPEED: 0.1,
@@ -42,7 +42,7 @@ function init() {
     // Scene
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
-    scene.fog = new THREE.Fog(0x87ceeb, 300, 500);
+    scene.fog = new THREE.Fog(0x87ceeb, 200, 400);
 
     // Camera
     camera = new THREE.PerspectiveCamera(
@@ -53,11 +53,11 @@ function init() {
     );
     camera.position.copy(player.position);
 
-    // Renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // Renderer - OPTIMISÉ
+    renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowShadowMap;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
+    renderer.shadowMap.enabled = false;  // Désactiver les ombres
     document.body.appendChild(renderer.domElement);
 
     // Lights
@@ -82,20 +82,12 @@ function init() {
 
 function setupLights() {
     // Sunlight
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
     directionalLight.position.set(100, 100, 100);
-    directionalLight.castShadow = true;
-    directionalLight.shadow.camera.far = 500;
-    directionalLight.shadow.camera.left = -200;
-    directionalLight.shadow.camera.right = 200;
-    directionalLight.shadow.camera.top = 200;
-    directionalLight.shadow.camera.bottom = -200;
-    directionalLight.shadow.mapSize.width = 2048;
-    directionalLight.shadow.mapSize.height = 2048;
     scene.add(directionalLight);
 
     // Ambient light
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
 }
 
@@ -308,7 +300,7 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-// World manager
+// World manager - OPTIMISÉ
 class World {
     constructor() {
         this.chunks = new Map();
@@ -346,7 +338,7 @@ class World {
         // Remove distant chunks
         this.chunks.forEach((chunk, key) => {
             const [cx, cz] = key.split(',').map(Number);
-            if (Math.abs(cx - chunkX) > renderDist || Math.abs(cz - chunkZ) > renderDist) {
+            if (Math.abs(cx - chunkX) > renderDist + 1 || Math.abs(cz - chunkZ) > renderDist + 1) {
                 scene.remove(chunk.mesh);
                 this.chunks.delete(key);
             }
@@ -366,15 +358,13 @@ class World {
                 const worldZ = chunkZ * CONFIG.CHUNK_SIZE + z;
                 const height = this.generateHeight(worldX, worldZ);
 
-                for (let y = 0; y < CONFIG.WORLD_HEIGHT; y++) {
+                for (let y = 0; y < Math.min(height + 5, CONFIG.WORLD_HEIGHT); y++) {
                     const pos = `${x},${y},${z}`;
                     if (y < height) {
                         if (y === height - 1) {
                             chunkData[pos] = 'grass';
                         } else if (y > height - 5) {
                             chunkData[pos] = 'dirt';
-                        } else if (y > height - 20) {
-                            chunkData[pos] = 'stone';
                         } else {
                             chunkData[pos] = 'stone';
                         }
@@ -409,20 +399,20 @@ class World {
 
     generateHeight(x, z) {
         // Simple Perlin-like noise simulation
-        const octaves = 4;
+        const octaves = 3;
         let height = 0;
         let amplitude = 1;
         let frequency = 0.01;
         let maxValue = 0;
 
         for (let i = 0; i < octaves; i++) {
-            height += Math.sin(x * frequency) * Math.cos(z * frequency) * amplitude * 30;
+            height += Math.sin(x * frequency) * Math.cos(z * frequency) * amplitude * 25;
             maxValue += amplitude;
             amplitude *= 0.5;
             frequency *= 2;
         }
 
-        return Math.floor(height / maxValue + 50);
+        return Math.floor(height / maxValue + 40);
     }
 
     addBlockToChunk(group, blockType, x, y, z, chunkX, chunkZ) {
@@ -432,15 +422,11 @@ class World {
             CONFIG.BLOCK_SIZE
         );
 
-        const material = new THREE.MeshPhongMaterial({
-            color: this.blockTypes[blockType].color,
-            flatShading: false,
-            shininess: 50
+        const material = new THREE.MeshLambertMaterial({
+            color: this.blockTypes[blockType].color
         });
 
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
         mesh.userData.block = blockType;
         mesh.userData.blockPos = new THREE.Vector3(
             chunkX * CONFIG.CHUNK_SIZE + x,
@@ -466,20 +452,16 @@ class World {
         if (!this.chunks.has(key)) return;
 
         const chunk = this.chunks.get(key);
-        const localX = pos.x - chunkX * CONFIG.CHUNK_SIZE;
-        const localZ = pos.z - chunkZ * CONFIG.CHUNK_SIZE;
 
         const geometry = new THREE.BoxGeometry(
             CONFIG.BLOCK_SIZE,
             CONFIG.BLOCK_SIZE,
             CONFIG.BLOCK_SIZE
         );
-        const material = new THREE.MeshPhongMaterial({
+        const material = new THREE.MeshLambertMaterial({
             color: this.blockTypes[blockType].color
         });
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
         mesh.userData.block = blockType;
         mesh.userData.blockPos = pos.clone();
         mesh.position.copy(pos);
@@ -497,7 +479,7 @@ class World {
 
         const chunk = this.chunks.get(key);
         chunk.mesh.children.forEach((block, index) => {
-            if (block.userData.blockPos.equals(pos)) {
+            if (block.userData.blockPos && block.userData.blockPos.equals(pos)) {
                 chunk.mesh.remove(block);
                 gameState.blockCount--;
             }
