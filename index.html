@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft 3D - Jeu de Construction</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            max-width: 300px;
+            z-index: 10;
+        }
+
+        #hotbar {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 5px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 10;
+        }
+
+        .hotbar-slot {
+            width: 50px;
+            height: 50px;
+            background: rgba(100, 100, 100, 0.5);
+            border: 2px solid #666;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .hotbar-slot.active {
+            border: 2px solid #fff;
+            background: rgba(150, 150, 150, 0.8);
+            transform: scale(1.1);
+        }
+
+        .hotbar-slot:hover {
+            background: rgba(120, 120, 120, 0.7);
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        #crosshair::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 50%;
+        }
+
+        #info {
+            position: absolute;
+            bottom: 100px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            max-width: 250px;
+            z-index: 10;
+        }
+
+        .info-line {
+            margin: 5px 0;
+        }
+
+        #controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            max-width: 300px;
+            z-index: 10;
+        }
+
+        .control-item {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
+        .key {
+            background: rgba(100, 100, 100, 0.6);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+            display: inline-block;
+            min-width: 30px;
+            text-align: center;
+        }
+
+        h3 {
+            margin-bottom: 10px;
+            color: #4fc3f7;
+        }
+
+        #loadingScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            font-size: 18px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #4fc3f7;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="loadingScreen">
+        <div class="spinner"></div>
+        <p>Chargement du monde...</p>
+    </div>
+
+    <div id="ui">
+        <h3>📊 Stats</h3>
+        <div class="info-line">Mode: <span id="gameMode">Créatif</span></div>
+        <div class="info-line">Blocs: <span id="blockCount">0</span></div>
+        <div class="info-line">FPS: <span id="fps">0</span></div>
+        <div class="info-line">Portée: <span id="range">5 blocs</span></div>
+    </div>
+
+    <div id="crosshair"></div>
+
+    <div id="hotbar">
+        <div class="hotbar-slot active" data-block="dirt">🟫<br><small>Terre</small></div>
+        <div class="hotbar-slot" data-block="stone">⬛<br><small>Pierre</small></div>
+        <div class="hotbar-slot" data-block="grass">🟩<br><small>Gazon</small></div>
+        <div class="hotbar-slot" data-block="wood">🟧<br><small>Bois</small></div>
+        <div class="hotbar-slot" data-block="sand">🟨<br><small>Sable</small></div>
+        <div class="hotbar-slot" data-block="water">🟦<br><small>Eau</small></div>
+    </div>
+
+    <div id="info">
+        <div class="info-line"><strong>Position:</strong> <span id="posX">0</span>, <span id="posY">0</span>, <span id="posZ">0</span></div>
+        <div class="info-line"><strong>Regardez:</strong> <span id="lookX">0</span>°, <span id="lookY">0</span>°</div>
+        <div class="info-line"><strong>Bloc sélectionné:</strong> <span id="selectedBlock">Terre</span></div>
+    </div>
+
+    <div id="controls">
+        <h3>⌨️ Contrôles</h3>
+        <div class="control-item"><span class="key">Z/Q/S/D</span> Mouvement</div>
+        <div class="control-item"><span class="key">ESPACE</span> Sauter</div>
+        <div class="control-item"><span class="key">MAJ</span> Descendre</div>
+        <div class="control-item"><span class="key">Souris</span> Regarder</div>
+        <div class="control-item"><span class="key">CLIC G</span> Détruire</div>
+        <div class="control-item"><span class="key">CLIC D</span> Placer</div>
+        <div class="control-item"><span class="key">1-6</span> Sélectionner bloc</div>
+        <div class="control-item"><span class="key">C</span> Créatif (vole)</div>
+        <div class="control-item"><span class="key">G</span> Grille ON/OFF</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
